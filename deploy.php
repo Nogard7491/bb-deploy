@@ -109,7 +109,7 @@ class Deploy
      */
     private function checkSecretOrDie($secret)
     {
-        if (self::SECRET != $secret) {
+        if (self::SECRET !== $secret) {
             $this->log('Ошибка: "Не совпадает секретный ключ".');
             die();
         }
@@ -129,9 +129,14 @@ class Deploy
             $this->log('Ошибка: "Массив данных с Bitbucket пуст".');
         }
 
-        if (self::REPOSITORY != $payload['repository']['name']) {
+        if (self::REPOSITORY !== $payload['repository']['name']) {
             $dieFlag = true;
             $this->log('Ошибка: "Не совпадает название репозитория".');
+        }
+
+        if (self::BRANCH !== $payload['push']['changes']['new']['name']) {
+            $dieFlag = true;
+            $this->log('Ошибка: "Не совпадает название ветки".');
         }
 
         if ($dieFlag == true) {
