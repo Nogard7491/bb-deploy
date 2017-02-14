@@ -3,7 +3,11 @@
 /**
  * Класс Deploy
  *
- * ...
+ * Класс реализует функционал автоматического файлов при изменении ветки репозитория с Bitbucket.
+ *
+ * Для обновления файлов используются команды:
+ *     1. git reset --hard HEAD
+ *     2. git pull
  */
 class Deploy
 {
@@ -53,13 +57,16 @@ class Deploy
     public $payload;
 
     /**
-     * Конструктор класса
+     * Создаёт объект класса
      *
-     * ...
+     * @param string $secret секретный ключ из GET запроса
+     * @param array $payload массив данных с Bitbucket
      */
     public function __construct($secret, $payload)
     {
-
+        $this->payload = json_decode($payload, true);
+        $this->checkSecretOrDie($secret);
+        $this->checkDataOrDie($this->payload);
     }
 
     /**
@@ -67,7 +74,16 @@ class Deploy
      */
     public function execute()
     {
-
+        $this->log('Началось обновление файлов на сервере...');
+        try {
+            $command = 'cd ' . self::REPOSITORY_ROOT_PATH;
+            $command .= ' && git reset --hard HEAD';
+            $command .= ' && git pull ' . self::REMOTE . ' ' . self::BRANCH;
+            $result = shell_exec($command);
+        } catch (Exception $ex) {
+            $this->log('Ошибка: "Выполнение команды обновления файлов произошло с ошибкой".');
+        }
+        $this->log('Обновление файлов завершено с результатом: ' . $result);
     }
 
     /**
@@ -75,8 +91,14 @@ class Deploy
      *
      * @param string $message сообщение
      */
-    private function log($message) {
-
+    private function log($message)
+    {
+        $filePath = realpath(self::LOG_ROOT_PATH) . DIRECTORY_SEPARATOR . self::LOG_FILENAME;
+        if (!file_exists($filePath)) {
+            file_put_contents($filePath, '');
+            chmod($filePath, 0666);
+        }
+        file_put_contents($filePath, date(self::LOG_DATE_FORMAT) . ' ' . $message . PHP_EOL, FILE_APPEND);
     }
 
     /**
@@ -85,8 +107,12 @@ class Deploy
      *
      * @param string $secret секретный ключ
      */
-    private function checkSecretOrDie($secret) {
-
+    private function checkSecretOrDie($secret)
+    {
+        if (self::SECRET != $secret) {
+            $this->log('Ошибка: "Не совпадает секретный ключ".');
+            die();
+        }
     }
 
     /**
@@ -94,10 +120,27 @@ class Deploy
      *
      * @param array $payload массив данных с Bitbucket
      */
-    private function checkPayloadOrDie($payload) {
+    private function checkPayloadOrDie($payload)
+    {
+        $dieFlag = false;
 
+        if (empty($payload)) {
+            $dieFlag = true;
+            $this->log('Ошибка: "Массив данных с Bitbucket пуст".');
+        }
+
+        if (self::REPOSITORY != $payload['repository']['name']) {
+            $dieFlag = true;
+            $this->log('Ошибка: "Не совпадает название репозитория".');
+        }
+
+        if ($dieFlag == true) {
+            die();
+        }
     }
 }
+
+date_default_timezone_set('Europe/Moscow');
 
 $secret = $_GET['secret'];
 $payload = file_get_contents('php://input');
